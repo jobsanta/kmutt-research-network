@@ -1,27 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KMUTT Research Network According to Google Scholar</title>
+    <title>KMUTT Research Network</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #0a0a0a; overflow: hidden; color: white; display: flex; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; background: #0a0a0a; overflow: hidden; color: white; display: flex; }
         
-        /* Side Filter */
+        /* Sidebar Filter */
         #filter-panel { width: 300px; height: 100vh; background: #161616; border-right: 1px solid #333; overflow-y: auto; padding: 20px; box-sizing: border-box; z-index: 100; }
         #filter-panel h2 { font-size: 18px; margin-top: 0; color: #ff9800; }
         .filter-item { margin-bottom: 8px; font-size: 12px; display: flex; align-items: center; }
         .filter-item input { margin-right: 10px; cursor: pointer; }
 
         /* Instruction Box */
-#instruction-box {
-    position: absolute; bottom: 25px; right: 25px;
-    background: rgba(15, 15, 15, 0.9); border: 1px solid #ff9800;
-    padding: 15px; border-radius: 10px; font-size: 12px; /* Slightly smaller font for more info */
-    line-height: 1.6; color: #efefef; pointer-events: none; z-index: 100;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    max-width: 250px; /* Prevents it from getting too wide */
-}
-        #instruction-box b { color: #ff9800; font-size: 14px; display: block; margin-bottom: 5px; border-bottom: 1px solid #444; }
+        #instruction-box {
+            position: absolute; bottom: 25px; right: 25px;
+            background: rgba(15, 15, 15, 0.9); border: 1px solid #ff9800;
+            padding: 15px; border-radius: 10px; font-size: 12px;
+            line-height: 1.6; color: #efefef; pointer-events: none; z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 260px;
+        }
+        #instruction-box b { color: #ff9800; font-size: 13px; display: block; margin-bottom: 5px; border-bottom: 1px solid #444; }
 
         #viz-container { flex-grow: 1; position: relative; }
         svg { width: 100%; height: 100%; }
@@ -37,6 +37,7 @@
         .label-hub { font-size: 14px; font-weight: bold; }
 
         .tooltip { position: absolute; padding: 10px; background: rgba(0,0,0,0.95); border: 1px solid #ff9800; border-radius: 5px; font-size: 12px; pointer-events: none; z-index: 1000; }
+        #status { position: absolute; top: 50%; left: 55%; transform: translate(-50%, -50%); color: #ff9800; font-weight: bold; font-size: 1.2em; }
     </style>
 </head>
 <body>
@@ -50,17 +51,20 @@
     </div>
     
     <div id="viz-container">
+        <div id="status">Calculating...</div>
         <div id="instruction-box">
-            <b>KMUTT Research Network according to Google Scholar</b>
+            <b>KMUTT RESEARCH NETWORK ACCORDING TO GOOGLE SCHOLAR PROFILES</b>
+            April 2026
             <b>NAVIGATION & CONTROLS</b>
-             <strong>Left-Click:</strong> Open Google Scholar Profile<br>
-             <strong>Right-Click & Drag:</strong> Move individual nodes<br>
-             <strong>Mouse Wheel / Pinch:</strong> Zoom In and Out<br>
-             <strong>Click & Drag Background:</strong> Pan (move) the whole map
-             <b style="margin-top: 10px;">LINK LEGEND</b>
-    <span style="color: #ffffff;">⚪</span> <strong>White:</strong> Theme to Researcher<br>
-    <span style="color: #4caf50;">🟢</span> <strong>Green:</strong> Internal KMUTT Co-author<br>
-    <span style="color: #ff9800;">🟠</span> <strong>Orange:</strong> External Co-author
+            <strong>Left-Click:</strong> Open Scholar Profile<br>
+            <strong>Right-Click & Drag:</strong> Move Nodes<br>
+            <strong>Scroll / Pinch:</strong> Zoom In/Out<br>
+            <strong>Drag Background:</strong> Pan Map
+
+            <b style="margin-top: 10px;">LINK LEGEND</b>
+            <strong>White:</strong> Theme to Professor<br>
+            <strong>Green:</strong> Internal Collaboration<br>
+            <strong>Orange:</strong> External Collaboration
         </div>
 
         <div class="tooltip" style="opacity:0"></div>
@@ -76,16 +80,11 @@
         let fullData, node, link, label;
         let activeClusters = new Set();
 
-        // Prevent browser menu on Right-Click
         svg.on("contextmenu", (e) => e.preventDefault());
 
-        // Enable Zoom and Pan on the background
-        const zoom = d3.zoom()
-            .scaleExtent([0.05, 5])
-            .on("zoom", (e) => container.attr("transform", e.transform));
+        const zoom = d3.zoom().scaleExtent([0.05, 5]).on("zoom", (e) => container.attr("transform", e.transform));
         svg.call(zoom);
 
-        // Right-Click Drag Logic
         const dragBehavior = d3.drag()
             .filter(event => event.button === 0 || event.button === 2)
             .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
@@ -93,6 +92,8 @@
             .on("end", (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; });
 
         const simulation = d3.forceSimulation()
+            .alphaDecay(0.04)    // Speed of cooling
+            .velocityDecay(0.4)  // Friction
             .force("link", d3.forceLink().id(d => d.id).distance(d => d.type === "theme-link" ? 220 : 70).strength(d => d.type === "theme-link" ? 1.0 : 0.2))
             .force("charge", d3.forceManyBody().strength(-250))
             .force("center", d3.forceCenter(width / 2, height / 2))
@@ -126,6 +127,8 @@
         });
 
         function update() {
+            d3.select("#status").style("display", "block");
+
             const filteredNodes = fullData.nodes.filter(n => activeClusters.has(n.group));
             const nodeIds = new Set(filteredNodes.map(n => n.id));
             const filteredLinks = fullData.links.filter(l => {
@@ -133,6 +136,15 @@
                 const t = typeof l.target === "object" ? l.target.id : l.target;
                 return nodeIds.has(s) && nodeIds.has(t);
             });
+
+            simulation.nodes(filteredNodes);
+            simulation.force("link").links(filteredLinks);
+
+            // PARTIAL ANNEALING: Run 80 ticks in background to fix global structure
+            simulation.stop();
+            for (let i = 0; i < 80; ++i) simulation.tick();
+            
+            d3.select("#status").style("display", "none");
 
             link = container.selectAll(".link").data(filteredLinks, d => (d.source.id || d.source) + "-" + (d.target.id || d.target));
             link.exit().remove();
@@ -162,8 +174,7 @@
                 .text(d => d.type === "outside" ? `${d.name} (${d.affiliation})` : d.name)
                 .attr("dx", d => d.size + 5).attr("dy", ".35em").merge(label);
 
-            simulation.nodes(filteredNodes);
-            simulation.force("link").links(filteredLinks);
+            // RESTART at low alpha (0.3) for a smooth settling effect
             simulation.alpha(0.3).restart();
 
             simulation.on("tick", () => {
