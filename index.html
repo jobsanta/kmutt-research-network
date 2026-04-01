@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KMUTT Research Network According to Google Scholar</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #0a0a0a; overflow: hidden; color: white; display: flex; }
+        
+        /* Side Filter */
+        #filter-panel { width: 300px; height: 100vh; background: #161616; border-right: 1px solid #333; overflow-y: auto; padding: 20px; box-sizing: border-box; z-index: 100; }
+        #filter-panel h2 { font-size: 18px; margin-top: 0; color: #ff9800; }
+        .filter-item { margin-bottom: 8px; font-size: 12px; display: flex; align-items: center; }
+        .filter-item input { margin-right: 10px; cursor: pointer; }
+
+        /* Instruction Box */
+        #instruction-box {
+            position: absolute; bottom: 25px; right: 25px;
+            background: rgba(15, 15, 15, 0.9); border: 1px solid #ff9800;
+            padding: 15px; border-radius: 10px; font-size: 13px;
+            line-height: 1.8; color: #efefef; pointer-events: none; z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        #instruction-box b { color: #ff9800; font-size: 14px; display: block; margin-bottom: 5px; border-bottom: 1px solid #444; }
+
+        #viz-container { flex-grow: 1; position: relative; }
+        svg { width: 100%; height: 100%; }
+
+        /* Links & Nodes */
+        .theme-link { stroke: #fff; stroke-opacity: 0.4; stroke-width: 1.5px; }
+        .internal-link { stroke: #4caf50; stroke-opacity: 0.4; stroke-width: 1px; }
+        .external-link { stroke: #ff9800; stroke-opacity: 0.4; stroke-width: 1px; }
+        circle { stroke: #fff; stroke-width: 1px; cursor: pointer; }
+        .node-hub { stroke-width: 3px; cursor: default; }
+        .node-outside { fill: #222 !important; stroke: #666; }
+        text { fill: #eee; font-size: 10px; pointer-events: none; text-shadow: 0 1px 2px #000; }
+        .label-hub { font-size: 14px; font-weight: bold; }
+
+        .tooltip { position: absolute; padding: 10px; background: rgba(0,0,0,0.95); border: 1px solid #ff9800; border-radius: 5px; font-size: 12px; pointer-events: none; z-index: 1000; }
+    </style>
+</head>
+<body>
+    <div id="filter-panel">
+        <h2>Research Themes</h2>
+        <div style="margin-bottom: 15px;">
+            <button onclick="toggleAll(true)">Show All</button>
+            <button onclick="toggleAll(false)">Hide All</button>
+        </div>
+        <div id="controls"></div>
+    </div>
+    
+    <div id="viz-container">
+        <div id="instruction-box">
+            <b>NAVIGATION & CONTROLS</b>
+             <strong>Left-Click:</strong> Open Google Scholar Profile<br>
+             <strong>Right-Click & Drag:</strong> Move individual nodes<br>
+             <strong>Mouse Wheel / Pinch:</strong> Zoom In and Out<br>
+             <strong>Click & Drag Background:</strong> Pan (move) the whole map
+        </div>
+
+        <div class="tooltip" style="opacity:0"></div>
+        <svg></svg>
+    </div>
+
+    <script>
+        const svg = d3.select("svg"), width = window.innerWidth - 300, height = window.innerHeight;
+        const container = svg.append("g");
+        const tooltip = d3.select(".tooltip");
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+        
+        let fullData, node, link, label;
+        let activeClusters = new Set();
+
+        // Prevent browser menu on Right-Click
+        svg.on("contextmenu", (e) => e.preventDefault());
+
+        // Enable Zoom and Pan on the background
+        const zoom = d3.zoom()
+            .scaleExtent([0.05, 5])
+            .on("zoom", (e) => container.attr("transform", e.transform));
+        svg.call(zoom);
+
+        // Right-Click Drag Logic
+        const dragBehavior = d3.drag()
+            .filter(event => event.button === 0 || event.button === 2)
+            .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+            .on("end", (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; });
+
+        const simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(d => d.id).distance(d => d.type === "theme-link" ? 220 : 70).strength(d => d.type === "theme-link" ? 1.0 : 0.2))
+            .force("charge", d3.forceManyBody().strength(-250))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(d => d.size + 15));
+
+        d3.json("network_data.json").then(data => {
+            fullData = data;
+            const seen = new Set();
+            const themes = [];
+            fullData.nodes.forEach(n => {
+                if (n.type === "hub" && !seen.has(n.group)) {
+                    themes.push({ id: n.group, name: n.name });
+                    seen.add(n.group);
+                    activeClusters.add(n.group); 
+                }
+            });
+            themes.sort((a, b) => a.name.localeCompare(b.name));
+
+            const controls = d3.select("#controls");
+            themes.forEach(t => {
+                const item = controls.append("div").attr("class", "filter-item");
+                item.append("input").attr("type", "checkbox").attr("checked", true).attr("id", "chk-"+t.id)
+                    .on("change", () => {
+                        if (activeClusters.has(t.id)) activeClusters.delete(t.id);
+                        else activeClusters.add(t.id);
+                        update();
+                    });
+                item.append("label").attr("for", "chk-"+t.id).text(t.name);
+            });
+            update();
+        });
+
+        function update() {
+            const filteredNodes = fullData.nodes.filter(n => activeClusters.has(n.group));
+            const nodeIds = new Set(filteredNodes.map(n => n.id));
+            const filteredLinks = fullData.links.filter(l => {
+                const s = typeof l.source === "object" ? l.source.id : l.source;
+                const t = typeof l.target === "object" ? l.target.id : l.target;
+                return nodeIds.has(s) && nodeIds.has(t);
+            });
+
+            link = container.selectAll(".link").data(filteredLinks, d => (d.source.id || d.source) + "-" + (d.target.id || d.target));
+            link.exit().remove();
+            link = link.enter().append("line").attr("class", d => "link " + d.type).merge(link);
+
+            node = container.selectAll("circle").data(filteredNodes, d => d.id);
+            node.exit().remove();
+            node = node.enter().append("circle")
+                .attr("r", d => d.size)
+                .attr("class", d => `node-${d.type}`)
+                .attr("fill", d => d.type === "outside" ? "#333" : color(d.group))
+                .on("mouseover", (event, d) => {
+                    tooltip.transition().duration(100).style("opacity", 1);
+                    tooltip.html(`<strong>${d.name}</strong><br/>${d.affiliation || 'Cluster'}`)
+                        .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px");
+                })
+                .on("mouseout", () => tooltip.transition().duration(300).style("opacity", 0))
+                .on("click", (event, d) => {
+                    if (event.button === 0 && d.profile_link) window.open(d.profile_link, '_blank');
+                })
+                .call(dragBehavior)
+                .merge(node);
+
+            label = container.selectAll(".label").data(filteredNodes, d => d.id);
+            label.exit().remove();
+            label = label.enter().append("text").attr("class", d => `label label-${d.type}`)
+                .text(d => d.type === "outside" ? `${d.name} (${d.affiliation})` : d.name)
+                .attr("dx", d => d.size + 5).attr("dy", ".35em").merge(label);
+
+            simulation.nodes(filteredNodes);
+            simulation.force("link").links(filteredLinks);
+            simulation.alpha(0.3).restart();
+
+            simulation.on("tick", () => {
+                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                node.attr("cx", d => d.x).attr("cy", d => d.y);
+                label.attr("x", d => d.x).attr("y", d => d.y);
+            });
+        }
+
+        function toggleAll(show) {
+            d3.selectAll("#controls input").property("checked", show);
+            if (show) fullData.nodes.forEach(n => activeClusters.add(n.group));
+            else activeClusters.clear();
+            update();
+        }
+    </script>
+</body>
+</html>
