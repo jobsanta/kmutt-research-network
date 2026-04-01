@@ -2,8 +2,7 @@ KMUTT Research Network Visualization
 
 An interactive, web-based visualization of the research ecosystem at King Mongkut's University of Technology Thonburi (KMUTT). This tool maps professors to specific research clusters and visualizes collaboration networks across departments and external institutions using D3.js.
 🚀 Live Demo
-
-[Insert your GitHub Pages link here, e.g., https://jobsanta.github.io/kmutt-research-network/]
+ https://jobsanta.github.io/kmutt-research-network/
 ✨ Features
 
     Intelligent Clustering: Maps researchers to 48 distinct themes (e.g., NLP, Robotics, Sustainability).
