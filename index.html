@@ -13,13 +13,14 @@
         .filter-item input { margin-right: 10px; cursor: pointer; }
 
         /* Instruction Box */
-        #instruction-box {
-            position: absolute; bottom: 25px; right: 25px;
-            background: rgba(15, 15, 15, 0.9); border: 1px solid #ff9800;
-            padding: 15px; border-radius: 10px; font-size: 13px;
-            line-height: 1.8; color: #efefef; pointer-events: none; z-index: 100;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
+#instruction-box {
+    position: absolute; bottom: 25px; right: 25px;
+    background: rgba(15, 15, 15, 0.9); border: 1px solid #ff9800;
+    padding: 15px; border-radius: 10px; font-size: 12px; /* Slightly smaller font for more info */
+    line-height: 1.6; color: #efefef; pointer-events: none; z-index: 100;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    max-width: 250px; /* Prevents it from getting too wide */
+}
         #instruction-box b { color: #ff9800; font-size: 14px; display: block; margin-bottom: 5px; border-bottom: 1px solid #444; }
 
         #viz-container { flex-grow: 1; position: relative; }
@@ -55,6 +56,10 @@
              <strong>Right-Click & Drag:</strong> Move individual nodes<br>
              <strong>Mouse Wheel / Pinch:</strong> Zoom In and Out<br>
              <strong>Click & Drag Background:</strong> Pan (move) the whole map
+             <b style="margin-top: 10px;">LINK LEGEND</b>
+    <span style="color: #ffffff;">⚪</span> <strong>White:</strong> Theme to Professor<br>
+    <span style="color: #4caf50;">🟢</span> <strong>Green:</strong> Internal KMUTT Co-author<br>
+    <span style="color: #ff9800;">🟠</span> <strong>Orange:</strong> External Co-author
         </div>
 
         <div class="tooltip" style="opacity:0"></div>
